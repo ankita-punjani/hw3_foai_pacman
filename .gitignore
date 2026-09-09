@@ -1,0 +1,8 @@
+.venv/
+.ipynb_checkpoints/
+__pycache__/
+pacman_runs/
+*.pt
+.DS_Store
+.vscode/settings.json
+run_archive/
