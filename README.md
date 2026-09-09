@@ -10,10 +10,23 @@ executed run, the analysis scripts, and this write-up are mine.
 **Reported evaluation score (notebook protocol, final saved model): mean 432.0 vs untrained baseline 492.0.**
 
 The honest headline is more interesting than that single number, and this README backs it with evidence.
-The protocol scores one checkpoint on five games. When I evaluated **all 24 saved checkpoints under the
-exact same frozen protocol**, they averaged **650.0** against the untrained baseline of 492.0, and **18 of
-24 beat it**. The final episode-600 checkpoint — the one the protocol happens to report — drew a bad
-sample at 432.0. The agent learned; the measurement is noisier than the effect.
+The protocol scores **one** checkpoint on **five** games, which is far too few to separate two agents this
+close together. To check that properly I re-evaluated on **40 fresh seeds** (disjoint from the graded five,
+paired so every model saw identical games):
+
+| Model | Mean over 40 seeds | vs untrained | Paired t | Seeds won |
+|---|---|---|---|---|
+| Untrained baseline | 522.0 | — | — | — |
+| **Final model (ep 600) — the graded one** | **602.8** | +80.8 (1.15×) | +1.23 | 28/40 |
+| Checkpoint ep 300 | 849.5 | +327.5 (1.63×) | **+3.19** | 32/40 |
+| Checkpoint ep 125 | **934.0** | +412.0 (1.79×) | **+4.64** | 32/40 |
+
+**So the agent genuinely learned — but it peaked around episodes 125–300 and then got worse.** The
+mid-training checkpoints beat the untrained network by a wide, statistically significant margin. The final
+model, the one the protocol grades, is only 15% better and that difference is *not* significant.
+
+The reported 432.0 is also just an unlucky draw: the same final model averages **602.8** over 40 seeds, so
+the five-game protocol underestimated it by nearly 30%.
 
 | | Value |
 |---|---|
@@ -129,11 +142,21 @@ checkpoints ([`analysis/checkpoint_sweep.py`](analysis/checkpoint_sweep.py)):
 | Reported final checkpoint (episode 600) | 432.0 |
 | Best checkpoint (episode 125) | 982.0 |
 
-Averaged over checkpoints the agent scores **+32% over the untrained baseline** (t = 4.19 against the
-baseline value). But the per-checkpoint standard deviation of **184.6** is far larger than the effect being
-measured, so any single five-game snapshot — including the one the protocol reports — is dominated by
-noise. Episode 600 simply drew badly. **This is the central lesson of my run: five games are not enough to
-rank two agents this close together.** Raw data: [`results/checkpoint_sweep_run1.json`](results/checkpoint_sweep_run1.json).
+The per-checkpoint standard deviation of **184.6** is larger than the effect being measured, so any single
+five-game snapshot — including the one the protocol reports — is dominated by noise.
+
+I want to be careful about what this sweep does and does not prove. Comparing a 24-checkpoint average
+against the untrained baseline is not a clean test, because that baseline was itself a single five-game
+estimate carrying exactly the same noise. So I verified it separately on **40 fresh seeds**
+([`analysis/verify_40_seeds.py`](analysis/verify_40_seeds.py),
+[`results/verification_40seeds.json`](results/verification_40seeds.json)), paired across models. That test
+is what the table at the top of this README reports, and it confirms the direction while sharpening the
+conclusion: the **mid-training** checkpoints beat the untrained network significantly (ep 125 is 1.79×
+baseline, paired t = +4.64, winning 32 of 40 seeds), while the **final** model is only 1.15× baseline at
+t = +1.23 — a real but statistically inconclusive edge.
+
+**The central lesson of my run: five games cannot rank two agents this close together, and my agent's best
+policy was not its last one.** Raw data: [`results/checkpoint_sweep_run1.json`](results/checkpoint_sweep_run1.json).
 
 **On loss.** Mean update loss rises 0.024 → 0.114 and rolls over near episode 400. That is Q-value
 magnitudes growing as discounted returns propagate, not divergence — and a concrete demonstration that
@@ -220,7 +243,8 @@ differences have sd 161.1 (SE 72.0, t = −0.83), so **−60 is noise, not a dec
 - [`results/comparison.json`](results/comparison.json) — all five before/after scores
 - [`results/baseline.json`](results/baseline.json) · [`results/demo_scores.json`](results/demo_scores.json) · [`results/checkpoint_sweep_run1.json`](results/checkpoint_sweep_run1.json)
 - [`results/ablation_buffer50k/`](results/ablation_buffer50k) — the interrupted 50,000-buffer comparison
-- [`analysis/`](analysis) — the three scripts used for the checkpoint sweep, the plot, and the action-distribution comparison
+- [`results/verification_40seeds.json`](results/verification_40seeds.json) — the 40-seed paired re-test of the untrained, final, and best checkpoints
+- [`analysis/`](analysis) — the four scripts used for the checkpoint sweep, the plot, the action-distribution comparison, and the 40-seed verification
 
 **Model checkpoints** (`untrained.pt`, `trained.pt`, and 24 periodic checkpoints, ~6.8 MB each, ~169 MB
 total) are **not in this repository**. They are kept locally in the ZIP the notebook produced,
@@ -254,37 +278,48 @@ Huber loss and Adam.
 
 ## One observed limitation
 
-**The agent still uses only 4 of its 9 actions, and it never learned that some rewards are worth more than
-others.** The trained network picks DOWNLEFT or DOWNRIGHT 84% of the time and never chooses plain `LEFT`,
-`RIGHT`, `DOWN`, or `NOOP` greedily. It moves in response to the screen — that is real progress over the
-untrained network's single constant action — but its repertoire is too narrow to escape a ghost that
-approaches from a direction its four actions do not address, which is why its games are *shorter* than the
-baseline's (512 vs 589 decisions) even while its average checkpoint scores higher.
+**The agent's performance peaked around episode 125–300 and then degraded for the rest of training.**
+Verified on 40 paired seeds: episode 125 scores 934.0 and episode 300 scores 849.5, but the final episode-600
+model drops to 602.8 — losing roughly a third of its advantage while still training. It is not that learning
+stalled; the agent actively got worse at the game the longer it trained, and the run's *best* policy was
+thrown away in favour of its last one.
 
-The likely cause is **reward clipping to [−1, 1]**: a 10-point pellet and a 200-point ghost produce an
-identical learning signal, so nothing in the agent's experience tells it that power pills set up the
-highest-value play in the game. It optimises for touching pellets, and any pellet will do.
+This is a textbook symptom of an unstable value estimate rather than a data shortage. Two things in the run
+point the same way: mean update loss climbs steadily from 0.024 to 0.114 through episode 400, and the target
+network resyncs every 1,000 decisions — only about 250 gradient updates apart. With a 5,000-transition
+buffer feeding it, the network is chasing a target that moves almost as fast as it does, so Q-values inflate
+and the greedy policy drifts away from the good one it had found.
 
-A second limitation is about measurement rather than the agent, and I think it is the more important one:
-**the five-game evaluation protocol has a noise band wider than the effect it is meant to detect**
-(checkpoint sd 184.6 vs a ~158-point improvement). My run only revealed its own learning because I
-evaluated 24 checkpoints instead of one.
+A related symptom in the final network: **it uses only 4 of its 9 actions**, picking DOWNLEFT or DOWNRIGHT
+84% of the time and never choosing plain `LEFT`, `RIGHT`, `DOWN`, or `NOOP` greedily. Its repertoire is too
+narrow to escape a ghost approaching from a direction those four actions do not address, which is why its
+games are *shorter* than the untrained baseline's (512 vs 589 decisions).
+
+A second limitation is about measurement rather than the agent: **the five-game protocol has a noise band
+wider than the effect it is meant to detect.** It scored the final model at 432.0 when that same model
+averages 602.8 over 40 seeds — a 28% underestimate — and it reported a *decline* for an agent that had in
+fact improved. My run only revealed its own learning because I evaluated 24 checkpoints and then re-tested on
+40 seeds instead of trusting one five-game number.
 
 ## One next experiment
 
-**Change one setting: raise `EPISODES` from 600 to 2,000**, holding exploration at 0.10, learning rate at
-0.0001, and the replay buffer back at its default 5,000.
+**Change one setting: raise `TARGET_EVERY` from 1,000 decisions to 5,000**, holding exploration at 0.10,
+episodes at 600, learning rate at 0.0001, and the replay buffer at its default 5,000.
 
-I would previously have named the replay buffer, but I tested that above and it made performance worse at
-this budget — so the evidence points at total experience instead. 600 episodes bought 91,141 updates, and
-the checkpoint curve is still wandering inside a wide noise band rather than climbing: the agent has not run
-out of things to learn, it has run out of data. 2,000 episodes would give roughly 300,000 updates and
-~1.2M decisions (about 2.8 hours on this machine at the measured 175 decisions/second), and it would fill
-in the region past episode 600 where I currently have no measurements at all.
+I have now been wrong about this twice, and both corrections came from measurement. My first guess was the
+replay buffer; I tested it and raising it to 50,000 made things *worse* at this budget. My second guess was
+that the agent had simply run out of data and needed more episodes — but the 40-seed test above falsifies
+that too: the agent had already peaked by episode 125 and spent the next 475 episodes getting worse. **More
+episodes would buy more degradation, not more learning.** The problem is not how much experience the agent
+sees; it is that its value estimates do not hold still.
 
-Concretely, I would expect the mean across checkpoints to rise above 650 and, more importantly, the
-**variance between neighbouring checkpoints to fall** as the policy settles — a stable action distribution
-across consecutive checkpoints would be stronger evidence of learning than any single five-game score. If
-the checkpoint mean is still flat at 2,000 episodes, the bottleneck is architectural rather than budgetary,
-and the next lever would be epsilon decay so the agent stops injecting 10% random moves into a policy it
-has already largely settled on.
+Slowing the target network is the smallest change that addresses that directly. Resyncing every 5,000
+decisions (≈1,250 updates) gives the online network a stationary target for five times longer, which is the
+standard remedy for the inflating Q-values and late-run policy drift this run displayed — and the original
+DQN paper uses a far slower sync than this notebook's default. It costs no extra memory and no extra
+training time.
+
+Concretely, I would expect the peak to hold rather than decay: the episode-600 checkpoint should land at or
+above the ~930 that episode 125 reached here, and the checkpoint-to-checkpoint variance in the sweep should
+shrink. I would evaluate it the same way — every checkpoint, then the best and final models on 40 paired
+seeds — because this run is proof that a single five-game score cannot tell me whether it worked.
