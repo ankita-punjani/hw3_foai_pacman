@@ -1,43 +1,15 @@
 # Ms. Pac-Man DQN — Class 3 Assignment
 
-A Deep Q-Network trained on `ALE/MsPacman-v5` with the class notebook, run locally on Apple Silicon.
+A Deep Q-Network trained on `ALE/MsPacman-v5` using the class notebook, run locally on Apple Silicon.
+
+**My three choices: exploration 0.10, 600 episodes, learning rate 0.0001.**
+**Result: mean 432.0 after training, against an untrained baseline of 492.0 — a change of −60.0.**
+The agent did not improve on the graded metric. All five scores are reported below, along with the
+evidence and an explanation of what did and did not change.
 
 The notebook and DQN implementation are the class starter from
 [pepealonso95/pacman-dqn](https://github.com/pepealonso95/pacman-dqn); the hyperparameter choices, the
-executed run, the analysis scripts, and this write-up are mine.
-
-**Submitted run: exploration 0.10, 600 episodes, learning rate 0.0001.**
-**Reported evaluation score (notebook protocol, final saved model): mean 432.0 vs untrained baseline 492.0.**
-
-The honest headline is more interesting than that single number, and this README backs it with evidence.
-The protocol scores **one** checkpoint on **five** games, which is far too few to separate two agents this
-close together. To check that properly I re-evaluated on **40 fresh seeds** (disjoint from the graded five,
-paired so every model saw identical games):
-
-| Model | Mean over 40 seeds | vs untrained | Paired t | Seeds won |
-|---|---|---|---|---|
-| Untrained baseline | 522.0 | — | — | — |
-| **Final model (ep 600) — the graded one** | **602.8** | +80.8 (1.15×) | +1.23 | 28/40 |
-| Checkpoint ep 300 | 849.5 | +327.5 (1.63×) | **+3.19** | 32/40 |
-| Checkpoint ep 125 | **934.0** | +412.0 (1.79×) | **+4.64** | 32/40 |
-
-**So the agent genuinely learned — but it peaked around episodes 125–300 and then got worse.** The
-mid-training checkpoints beat the untrained network by a wide, statistically significant margin. The final
-model, the one the protocol grades, is only 15% better and that difference is *not* significant.
-
-The reported 432.0 is also just an unlucky draw: the same final model averages **602.8** over 40 seeds, so
-the five-game protocol underestimated it by nearly 30%.
-
-| | Value |
-|---|---|
-| Exploration | **0.10** |
-| Episodes | **600** requested, **600 completed** |
-| Learning rate | **0.0001** |
-| Decisions | 365,560 |
-| Learning updates | 91,141 |
-| Elapsed (training + periodic demos) | 3,100 s ≈ **51.7 min** |
-| Hardware | Apple M4, 16 GB RAM, **MPS** backend, macOS 15.6.1, Python 3.13.15, PyTorch 2.14.0 |
-| Status | **`completed`** — not interrupted, and learning updates did occur |
+executed run, the analysis, and this write-up are mine.
 
 ---
 
@@ -53,150 +25,125 @@ python -m jupyter lab pacman_dqn.ipynb
 
 Select a Python 3.11–3.13 kernel and choose **Run All**. CUDA, Apple MPS, and CPU are detected
 automatically. The notebook also opens in
-[Google Colab](https://colab.research.google.com/github/pepealonso95/pacman-dqn/blob/main/pacman_dqn.ipynb).
+[Google Colab](https://colab.research.google.com/github/pepealonso95/pacman-dqn/blob/main/pacman_dqn.ipynb)
+(Runtime → Change runtime type → T4 GPU).
 
-**The executed notebook is [`pacman_dqn.ipynb`](pacman_dqn.ipynb)** — saved after the final training and
-evaluation run, with all cell outputs intact. The scores, dashboard, and all 26 gameplay GIFs are embedded
-and render on GitHub without rerunning anything.
+[**`pacman_dqn.ipynb`**](pacman_dqn.ipynb) is the executed notebook, saved after the final training and
+evaluation run with all cell outputs visible. Its scores, dashboard, and 26 gameplay GIFs render on GitHub
+without rerunning anything.
 
-### What was changed from the starter notebook
+---
 
-The three assigned values, plus one display flag:
+## My three hyperparameters
 
-| Setting | Starter | This run | Why |
-|---|---|---|---|
-| `EXPLORATION` | 0.20 | **0.10** | see below |
-| `EPISODES` | 100 | **600** | see below |
-| `LEARNING_RATE` | 0.0001 | **0.0001** | unchanged |
-| `SHOW_POPUPS` | `True` | `False` | The run was executed headlessly with `jupyter nbconvert --execute`, which has no desktop for the Tk popup player. **Preview display only** — it does not touch the agent's decisions, learning, or scores. |
+| Setting | Starter | My run |
+|---|---|---|
+| Exploration | 0.20 | **0.10** |
+| Episodes | 100 | **600** |
+| Learning rate | 0.0001 | **0.0001** |
 
-**Every learning and evaluation setting is untouched**: the same five seeds `[101, 202, 303, 404, 505]`,
+**Exploration = 0.10.** The environment already applies **25% sticky actions**, so it injects a lot of
+randomness before epsilon adds any. The replay buffer holds only **5,000 transitions ≈ 8 games**, so
+training data is nearly on-policy and overwritten quickly — filling it with random moves wastes the only
+memory the agent has. Epsilon is also **constant here, with no decay**, so my value applied for all 600
+games; since evaluation always runs at 5%, training at 20% would mean optimising a noisier policy than the
+one being graded.
+
+**Episodes = 600.** A five-episode setup check took 75 seconds and produced 491 updates — enough to prove
+the pipeline, far too few to learn. Episodes govern how much experience the agent sees, so I took the
+largest budget that fit comfortably in one sitting (~52 min). This also produced 24 intermediate GIFs and
+checkpoints every 25 episodes.
+
+**Learning rate = 0.0001.** The standard Adam DQN value and the notebook's reference point. With a small
+buffer and a target network resyncing every 1,000 decisions, the setup already chases a moving target; a
+larger rate learns faster per update but risks oscillation, and a diverged run would have wasted the whole
+budget.
+
+### Other settings
+
+I changed one setting beyond the three: **`SHOW_POPUPS` from `True` to `False`**, because I executed the
+notebook headlessly with `jupyter nbconvert --execute`, which has no desktop for the Tk popup player. This
+affects **preview display only** — not the agent's decisions, learning, or scores.
+
+**All learning and evaluation settings are unchanged**: the same five seeds `[101, 202, 303, 404, 505]`,
 5% evaluation exploration, 3,000-decision cap, replay capacity 5,000, batch 32, gamma 0.99, target sync
 every 1,000 decisions, reward clipping to [−1, 1], demo every 25 episodes.
 
 ---
 
-## Why these three numbers
+## Actual training budget
 
-**Exploration = 0.10** (half the default). The environment already applies **25% sticky actions**, so it
-injects substantial randomness before epsilon contributes anything. The replay buffer holds only **5,000
-transitions ≈ 8 games**, so training data is nearly on-policy and is overwritten quickly — filling it with
-random flailing wastes the only memory the agent has. And epsilon here is **constant, with no decay**, so
-the value I picked applied for all 600 games; since evaluation always runs at 5%, training at 20% means
-optimizing a noticeably noisier policy than the one being graded.
-
-**Episodes = 600.** A five-episode setup check took 75 seconds wall clock and produced 491 updates —
-enough to prove the pipeline, far too few to learn anything. Episodes are the lever that governs how much
-experience the agent sees, so I scaled to the largest budget that fit comfortably in one sitting (~52 min).
-This also produced 24 intermediate GIFs and checkpoints, which turned out to be the most valuable evidence
-in the whole run.
-
-**Learning rate = 0.0001.** The standard Adam DQN value and the notebook's reference point. With a small
-buffer and a target network resyncing every 1,000 decisions, the setup already chases a moving target; a
-larger rate (0.00025) learns faster per update but risks oscillation, and a diverged run would have wasted
-the entire budget.
+| | Value |
+|---|---|
+| Episodes | **600 requested, 600 completed** |
+| Decisions | 365,560 |
+| Learning updates | 91,141 |
+| Elapsed (training + periodic demos) | 3,100 s ≈ **51.7 min** |
+| Hardware | Apple M4, 16 GB RAM, **MPS** backend |
+| Software | macOS 15.6.1, Python 3.13.15, PyTorch 2.14.0, Gymnasium 1.3.0, ALE-py 0.11.2 |
+| Status | **`completed`** — the run was not interrupted, and learning updates did occur |
 
 ---
 
 ## What I expected, and what I observed
 
-**Expected:** a modest but visible improvement — perhaps 492 → 700 — with the agent learning to keep eating
+**Expected.** A modest but visible improvement — perhaps 492 → 700 — with the agent learning to keep eating
 pellets instead of dying early, and most of the gain arriving in the first 200 episodes.
 
-**Observed, in three parts.**
+**Observed.** The score did not improve. Training scores rose about 15% over the first ~100 episodes
+(50-game mean 677 → 784), then plateaued for the remaining 500 episodes, ending at 720. The final
+evaluation came in 60 points *below* the untrained baseline, and the 24 progress demos show no upward trend.
 
-**1. The reported number went down.** Final model 432.0 vs untrained 492.0, a change of −60.0. Taken alone
-this looks like a failed run. It is not significant: the five paired per-seed differences have a standard
-deviation of 161.1 (standard error 72.0, t = −0.83).
+Two things I did not expect:
 
-**2. The network genuinely learned.** Comparing the untrained and trained networks directly
-([`analysis/action_distribution.py`](analysis/action_distribution.py)):
+**The untrained baseline is not a weak opponent.** Comparing the two networks directly
+([`analysis/action_distribution.py`](analysis/action_distribution.py)), the untrained network picks
+**UPLEFT 100% of the time**, regardless of what is on screen — its Q-values are nearly flat, so `argmax`
+always returns the same output. In Ms. Pac-Man that is a surprisingly effective degenerate strategy: maze
+walls plus 25% sticky actions turn a constant input into a steady patrol along a pellet route. Seed 404
+scored 800 that way. The baseline is an untrained network, not a random-action agent, and it sets a real bar.
+
+**The network did learn, even though the score did not improve.**
 
 | | Untrained | Trained (600 episodes) |
 |---|---|---|
-| Greedy action distribution over the 5 eval games | **UPLEFT 100.0%** | DOWNLEFT 42.8%, DOWNRIGHT 41.5%, UP 14.2%, UPRIGHT 1.5% |
-| Mean Q-value spread (max − min) per state | 0.076 | **0.208** |
+| Greedy action distribution | UPLEFT 100.0% | DOWNLEFT 42.8%, DOWNRIGHT 41.5%, UP 14.2%, UPRIGHT 1.5% |
+| Mean Q-value spread (max − min) | 0.076 | **0.208** |
 | Distinct actions used | 1 of 9 | 4 of 9 |
 | Mean game length (decisions) | 589.0 | 512.2 |
 
-The untrained network emits **one constant action regardless of what is on screen** — its Q-values are
-nearly flat, so `argmax` always returns the same output. After training the policy is genuinely
-**state-dependent** and the value estimates are about **3× more discriminating**.
-
-This also explains why the baseline is deceptively strong. "Always press UPLEFT" is an effective degenerate
-strategy in Ms. Pac-Man: maze walls plus 25% sticky actions turn a constant input into a steady patrol
-along a fixed pellet route, which scores reliably and sometimes gets lucky — seed 404 scored 800 that way.
-**The baseline is not a random agent, and it is not weak.**
-
-**3. Measuring every checkpoint shows the learning the single final score hides.** I re-ran the frozen
-evaluation protocol — same five seeds, same 5% exploration, same 3,000-decision cap — on all 24 periodic
-checkpoints ([`analysis/checkpoint_sweep.py`](analysis/checkpoint_sweep.py)):
-
-![Checkpoint sweep](results/checkpoint_sweep.png)
-
-| | Mean of five evaluation games |
-|---|---|
-| Untrained baseline | 492.0 |
-| **Mean across all 24 trained checkpoints** | **650.0** (sd 184.6, range 400.0–982.0) |
-| Checkpoints beating the untrained baseline | **18 of 24** |
-| Reported final checkpoint (episode 600) | 432.0 |
-| Best checkpoint (episode 125) | 982.0 |
-
-The per-checkpoint standard deviation of **184.6** is larger than the effect being measured, so any single
-five-game snapshot — including the one the protocol reports — is dominated by noise.
-
-I want to be careful about what this sweep does and does not prove. Comparing a 24-checkpoint average
-against the untrained baseline is not a clean test, because that baseline was itself a single five-game
-estimate carrying exactly the same noise. So I verified it separately on **40 fresh seeds**
-([`analysis/verify_40_seeds.py`](analysis/verify_40_seeds.py),
-[`results/verification_40seeds.json`](results/verification_40seeds.json)), paired across models. That test
-is what the table at the top of this README reports, and it confirms the direction while sharpening the
-conclusion: the **mid-training** checkpoints beat the untrained network significantly (ep 125 is 1.79×
-baseline, paired t = +4.64, winning 32 of 40 seeds), while the **final** model is only 1.15× baseline at
-t = +1.23 — a real but statistically inconclusive edge.
-
-**The central lesson of my run: five games cannot rank two agents this close together, and my agent's best
-policy was not its last one.** Raw data: [`results/checkpoint_sweep_run1.json`](results/checkpoint_sweep_run1.json).
+The policy went from one constant action to genuinely state-dependent, with value estimates about 3× more
+discriminating. It just did not convert that into points.
 
 **On loss.** Mean update loss rises 0.024 → 0.114 and rolls over near episode 400. That is Q-value
-magnitudes growing as discounted returns propagate, not divergence — and a concrete demonstration that
-**lower loss does not mean better play**: loss went *up* across the stretch where the policy was improving.
+magnitudes growing as discounted returns propagate, not divergence — and a reminder that **lower training
+loss does not mean better play**: loss went *up* over the stretch where the policy structure was improving.
 
 ---
 
-## A second experiment I ran, and it failed
+## Evaluation: all five scores
 
-Before writing this up I tested my own proposed fix — the obvious suspect was the 5,000-transition replay
-buffer — by rerunning with **`REPLAY_CAPACITY = 50,000`** and every other setting identical.
+Identical settings before and after — seeds `[101, 202, 303, 404, 505]`, 5% exploration, 3,000-decision
+cap. The baseline is an untrained network.
 
-**It made things worse.** That run was **interrupted at episode 265 of 600** (my machine's app was quit
-mid-run), so it has no `trained.pt`, no `comparison.json`, and no `training_summary.json`. It is reported
-here as an ablation only, never as a submitted result. Comparing checkpoints at matched budget:
+| Game | Seed | Before (untrained) | After (trained) | Change |
+|---:|---:|---:|---:|---:|
+| 1 | 101 | 350 | 450 | +100 |
+| 2 | 202 | 500 | 410 | −90 |
+| 3 | 303 | 320 | 350 | +30 |
+| 4 | 404 | 800 | 480 | −320 |
+| 5 | 505 | 490 | 470 | −20 |
+| **Mean** | | **492.0** | **432.0** | **−60.0** |
 
-| Checkpoint | Five eval scores | Mean |
-|---|---|---|
-| Untrained | 350, 500, 320, 800, 490 | 492.0 |
-| Buffer 5,000 @ episode 250 | 900, 340, 410, 350, 520 | **504.0** |
-| Buffer 50,000 @ episode 250 | 200, 230, 240, 370, 500 | **308.0** |
-
-Across the first ten checkpoints the 5,000 buffer averaged **641.4** and the 50,000 buffer **476.4**
-(right-hand panel of the plot above). My explanation: with only ~365k total decisions, a 50,000-transition
-buffer keeps warm-up and early bad-policy experience in the sampling pool for far longer, so a scarce
-update budget is spent rehearsing stale data. Large buffers earn their keep at millions of frames, not
-hundreds of thousands. Data: [`results/ablation_buffer50k/`](results/ablation_buffer50k).
-
-I am reporting this because it changed my conclusion — the replay buffer is *not* the binding constraint at
-this budget, which is the opposite of what I assumed going in.
-
----
-
-## Evidence
+Two of five seeds improved, three declined; neither agent hit the time limit on any game. The paired
+differences have a standard deviation of 161.1 (SE 72.0, t = −0.83), so the −60 is within noise rather than
+a reliable decline. Full data: [**`comparison.json`**](results/comparison.json).
 
 ### Training dashboard
 
 ![Training dashboard](results/training_dashboard.png)
 
-Raw score per game (left) with the 25-game running mean; mean update loss (centre); training exploration
+Raw score per game with the 25-game running mean (left); mean update loss (centre); training exploration
 (right), dropping from the 1.0 warm-up to a flat 0.10 for the rest of the run.
 
 ### Gameplay
@@ -212,39 +159,89 @@ Intermediate progress samples (one evaluation game on seed 101 after every 25th 
 | ![25](results/demos/episode_0025.gif) | ![150](results/demos/episode_0150.gif) | ![300](results/demos/episode_0300.gif) | ![450](results/demos/episode_0450.gif) | ![600](results/demos/episode_0600.gif) |
 | 380 | 670 | 1410 | 540 | 450 |
 
-All 24 progress GIFs are in [`results/demos/`](results/demos); their scores are in
+All 24 progress GIFs are in [`results/demos/`](results/demos), with scores in
 [`demo_scores.json`](results/demo_scores.json). GIFs play at 4× speed and show the first 20 seconds of game
 time.
 
-### All five evaluation scores
+---
 
-Identical settings before and after: seeds `[101, 202, 303, 404, 505]`, 5% exploration, 3,000-decision cap.
-The baseline is an untrained network, not a random-action agent.
+## What the agent observes, does, and is rewarded for
 
-| Game | Seed | Before (untrained) | After (trained) | Change |
-|---:|---:|---:|---:|---:|
-| 1 | 101 | 350 | 450 | +100 |
-| 2 | 202 | 500 | 410 | −90 |
-| 3 | 303 | 320 | 350 | +30 |
-| 4 | 404 | 800 | 480 | −320 |
-| 5 | 505 | 490 | 470 | −20 |
-| **Mean** | | **492.0** | **432.0** | **−60.0** |
+**Observations — what it sees.** Not the game's memory, and no list of ghost positions. It sees the
+**screen**: each frame is turned to greyscale and shrunk to 84×84 pixels, and the **last four frames are
+stacked** into one observation. Four rather than one because a single still image cannot show motion — from
+one frame you cannot tell whether a ghost is closing in or moving away.
 
-Two of five seeds improved, three declined; no game hit the time limit in either condition. The paired
-differences have sd 161.1 (SE 72.0, t = −0.83), so **−60 is noise, not a decline**. Full data:
-[**`comparison.json`**](results/comparison.json).
+**Actions — what it can do.** Nine **joystick moves**: `NOOP`, `UP`, `RIGHT`, `LEFT`, `DOWN`, and the four
+diagonals. One decision covers four emulator frames, and 25% of the time the game repeats the previous
+action instead ("sticky actions"), so control is deliberately imprecise.
 
-### Files
+**Rewards — how it is graded.** Ordinary **game points** — pellets, power pills, fruit, eaten ghosts. During
+learning each reward is **clipped to [−1, 1]** so one large payoff cannot swamp the updates; every score in
+this README is the raw, unclipped game score.
 
-- Executed notebook with all outputs: [`pacman_dqn.ipynb`](pacman_dqn.ipynb)
+**The learning rule.** A convolutional network predicts a value for each of the nine actions. Experience is
+stored in a replay buffer and sampled in batches of 32, so updates are not dominated by whatever just
+happened. A slowly-updated copy of the network (the "target network") supplies the prediction target, and
+future reward is discounted by gamma = 0.99. The gap between predicted and target value is closed with
+Huber loss and Adam.
+
+---
+
+## One observed limitation
+
+**The agent's performance peaked early and then degraded — it was better at episode 125 than at episode
+600.** I evaluated every saved checkpoint under the frozen protocol, then re-tested the key models on 40
+fresh paired seeds to escape the five-game noise (details in *Additional analysis* below). Episode 125
+averaged 934 and episode 300 averaged 850, while the final episode-600 model dropped to 603. The run's best
+policy was discarded in favour of its last one.
+
+This looks like an unstable value estimate rather than too little data. Two things point the same way: mean
+update loss climbs steadily to episode 400, and the target network resyncs every 1,000 decisions — only
+about 250 gradient updates apart. With a 5,000-transition buffer feeding it, the network chases a target
+moving nearly as fast as it is, so Q-values inflate and the greedy policy drifts away from the good one it
+had found.
+
+A visible symptom in the final network: **it uses only 4 of its 9 actions**, picking DOWNLEFT or DOWNRIGHT
+84% of the time and never choosing plain `LEFT`, `RIGHT`, `DOWN`, or `NOOP` greedily. That repertoire is too
+narrow to escape a ghost approaching from a direction those four actions do not address, which is why its
+games are *shorter* than the baseline's (512 vs 589 decisions).
+
+## One next experiment
+
+**Change one setting: raise `TARGET_EVERY` from 1,000 decisions to 5,000**, holding exploration at 0.10,
+episodes at 600, learning rate at 0.0001, and the replay buffer at 5,000.
+
+I tested two other candidates first and both were wrong. Raising the replay buffer to 50,000 made
+performance *worse* at this budget. Raising the episode count would not help either, because the agent had
+already peaked by episode 125 and spent the next 475 episodes getting worse — more episodes would buy more
+degradation, not more learning. The problem is not how much experience the agent sees; it is that its value
+estimates do not hold still.
+
+Slowing the target network is the smallest change that addresses that directly. Resyncing every 5,000
+decisions (≈1,250 updates) gives the online network a stationary target five times longer, which is the
+standard remedy for the inflating Q-values and late-run drift this run showed — and the original DQN paper
+syncs far more slowly than this notebook's default. It costs no extra memory and no extra training time. I
+would expect the episode-600 checkpoint to hold near the ~930 that episode 125 reached here instead of
+decaying to 603.
+
+---
+
+## Files
+
+- [`pacman_dqn.ipynb`](pacman_dqn.ipynb) — executed notebook with all outputs
 - [`results/config.json`](results/config.json) — settings, hardware, exact package versions
 - [`results/training.csv`](results/training.csv) — one row per training game (600 rows)
 - [`results/training_summary.json`](results/training_summary.json) — status, episodes, decisions, updates, elapsed
 - [`results/comparison.json`](results/comparison.json) — all five before/after scores
-- [`results/baseline.json`](results/baseline.json) · [`results/demo_scores.json`](results/demo_scores.json) · [`results/checkpoint_sweep_run1.json`](results/checkpoint_sweep_run1.json)
-- [`results/ablation_buffer50k/`](results/ablation_buffer50k) — the interrupted 50,000-buffer comparison
-- [`results/verification_40seeds.json`](results/verification_40seeds.json) — the 40-seed paired re-test of the untrained, final, and best checkpoints
-- [`analysis/`](analysis) — the four scripts used for the checkpoint sweep, the plot, the action-distribution comparison, and the 40-seed verification
+- [`results/baseline.json`](results/baseline.json) · [`results/demo_scores.json`](results/demo_scores.json)
+- [`analysis/`](analysis) — scripts for the checkpoint sweep, plot, action-distribution comparison, and 40-seed verification
+
+**Interrupted runs.** The submitted run **completed all 600 episodes with 91,141 learning updates** — it was
+not interrupted and did not lack learning updates. One *additional* experiment described below (the
+50,000-buffer ablation) **was interrupted at episode 265 of 600** when my machine's app quit mid-run, so it
+has no `trained.pt`, no `comparison.json`, and no `training_summary.json`. It is reported as an ablation
+only, never as a submitted result.
 
 **Model checkpoints** (`untrained.pt`, `trained.pt`, and 24 periodic checkpoints, ~6.8 MB each, ~169 MB
 total) are **not in this repository**. They are kept locally in the ZIP the notebook produced,
@@ -253,73 +250,39 @@ regenerates equivalent checkpoints under a fresh `pacman_runs/` folder.
 
 ---
 
-## How the agent works, in plain language
+## Additional analysis
 
-**Observations — what it sees.** Not the game's memory, and no list of ghost positions. It sees the
-**screen**: each frame is converted to greyscale and shrunk to 84×84 pixels, and the **last four frames are
-stacked** into one observation. Four rather than one because a single still image cannot show motion — from
-one frame you cannot tell whether a ghost is closing in or moving away.
+These extra checks are beyond the assignment's requirements. They do not change the reported score of
+**432.0**, which stands as the notebook's protocol produced it.
 
-**Actions — what it can do.** Nine joystick positions: `NOOP`, `UP`, `RIGHT`, `LEFT`, `DOWN`, and the four
-diagonals. One decision covers four emulator frames, and 25% of the time the game repeats the previous
-action instead ("sticky actions"), so control is deliberately imprecise.
+**Every checkpoint under the frozen protocol.** I re-ran the same five seeds, 5% exploration, and
+3,000-decision cap on all 24 periodic checkpoints
+([`analysis/checkpoint_sweep.py`](analysis/checkpoint_sweep.py),
+[`results/checkpoint_sweep_run1.json`](results/checkpoint_sweep_run1.json)):
 
-**Rewards — how it is graded.** Ordinary **game points** — pellets, power pills, fruit, eaten ghosts. During
-learning each reward is **clipped to [−1, 1]** so one large payoff cannot swamp the updates; every score
-reported in this README is the raw, unclipped game score.
+![Checkpoint sweep](results/checkpoint_sweep.png)
 
-**The learning rule.** A convolutional network predicts a value for each of the nine actions. Experience is
-stored in a replay buffer and sampled in batches of 32, so updates are not dominated by whatever just
-happened. A slowly-updated copy of the network (the "target network") supplies the prediction target, and
-future reward is discounted by gamma = 0.99. The gap between predicted and target value is reduced with
-Huber loss and Adam.
+They average 650.0 with a standard deviation of 184.6 and a range of 400–982. That spread is wider than the
+effect being measured, so any single five-game snapshot is dominated by noise.
 
----
+**A 40-seed paired re-test.** Because the untrained baseline was itself only a five-game estimate, I
+re-evaluated the key models on 40 fresh seeds disjoint from the graded five, paired so every model played
+identical games ([`analysis/verify_40_seeds.py`](analysis/verify_40_seeds.py),
+[`results/verification_40seeds.json`](results/verification_40seeds.json)):
 
-## One observed limitation
+| Model | Mean over 40 seeds | vs untrained | Paired t | Seeds won |
+|---|---|---|---|---|
+| Untrained baseline | 522.0 | — | — | — |
+| Final model (ep 600) | 602.8 | +80.8 (1.15×) | +1.23 (not significant) | 28/40 |
+| Checkpoint ep 300 | 849.5 | +327.5 (1.63×) | **+3.19** | 32/40 |
+| Checkpoint ep 125 | **934.0** | +412.0 (1.79×) | **+4.64** | 32/40 |
 
-**The agent's performance peaked around episode 125–300 and then degraded for the rest of training.**
-Verified on 40 paired seeds: episode 125 scores 934.0 and episode 300 scores 849.5, but the final episode-600
-model drops to 602.8 — losing roughly a third of its advantage while still training. It is not that learning
-stalled; the agent actively got worse at the game the longer it trained, and the run's *best* policy was
-thrown away in favour of its last one.
+This is the evidence behind the limitation above: mid-training checkpoints beat the untrained network
+significantly, while the final model's edge is real but statistically inconclusive.
 
-This is a textbook symptom of an unstable value estimate rather than a data shortage. Two things in the run
-point the same way: mean update loss climbs steadily from 0.024 to 0.114 through episode 400, and the target
-network resyncs every 1,000 decisions — only about 250 gradient updates apart. With a 5,000-transition
-buffer feeding it, the network is chasing a target that moves almost as fast as it does, so Q-values inflate
-and the greedy policy drifts away from the good one it had found.
-
-A related symptom in the final network: **it uses only 4 of its 9 actions**, picking DOWNLEFT or DOWNRIGHT
-84% of the time and never choosing plain `LEFT`, `RIGHT`, `DOWN`, or `NOOP` greedily. Its repertoire is too
-narrow to escape a ghost approaching from a direction those four actions do not address, which is why its
-games are *shorter* than the untrained baseline's (512 vs 589 decisions).
-
-A second limitation is about measurement rather than the agent: **the five-game protocol has a noise band
-wider than the effect it is meant to detect.** It scored the final model at 432.0 when that same model
-averages 602.8 over 40 seeds — a 28% underestimate — and it reported a *decline* for an agent that had in
-fact improved. My run only revealed its own learning because I evaluated 24 checkpoints and then re-tested on
-40 seeds instead of trusting one five-game number.
-
-## One next experiment
-
-**Change one setting: raise `TARGET_EVERY` from 1,000 decisions to 5,000**, holding exploration at 0.10,
-episodes at 600, learning rate at 0.0001, and the replay buffer at its default 5,000.
-
-I have now been wrong about this twice, and both corrections came from measurement. My first guess was the
-replay buffer; I tested it and raising it to 50,000 made things *worse* at this budget. My second guess was
-that the agent had simply run out of data and needed more episodes — but the 40-seed test above falsifies
-that too: the agent had already peaked by episode 125 and spent the next 475 episodes getting worse. **More
-episodes would buy more degradation, not more learning.** The problem is not how much experience the agent
-sees; it is that its value estimates do not hold still.
-
-Slowing the target network is the smallest change that addresses that directly. Resyncing every 5,000
-decisions (≈1,250 updates) gives the online network a stationary target for five times longer, which is the
-standard remedy for the inflating Q-values and late-run policy drift this run displayed — and the original
-DQN paper uses a far slower sync than this notebook's default. It costs no extra memory and no extra
-training time.
-
-Concretely, I would expect the peak to hold rather than decay: the episode-600 checkpoint should land at or
-above the ~930 that episode 125 reached here, and the checkpoint-to-checkpoint variance in the sweep should
-shrink. I would evaluate it the same way — every checkpoint, then the best and final models on 40 paired
-seeds — because this run is proof that a single five-game score cannot tell me whether it worked.
+**Replay-buffer ablation (interrupted).** I tested whether the 5,000-transition buffer was the bottleneck by
+rerunning with `REPLAY_CAPACITY = 50,000` and everything else identical. It performed **worse** at matched
+budget — 308.0 vs 504.0 at episode 250 — and across the first ten checkpoints averaged 476.4 against the
+5,000 buffer's 641.4. My reading: with only ~365k total decisions, a large buffer keeps warm-up and early
+bad-policy experience in the sampling pool far longer, so a scarce update budget is spent rehearsing stale
+data. Data: [`results/ablation_buffer50k/`](results/ablation_buffer50k).
