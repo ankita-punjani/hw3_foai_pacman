@@ -6,3 +6,4 @@ pacman_runs/
 .DS_Store
 .vscode/settings.json
 run_archive/
+candidates/

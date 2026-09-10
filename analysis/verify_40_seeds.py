@@ -14,7 +14,7 @@ def make_env():
     return gym.wrappers.TimeLimit(e,max_episode_steps=3000)
 SEEDS=list(range(1000,1040))   # 40 fresh seeds, disjoint from the graded five
 env=make_env(); out={}
-for label,path in [a.split("=") for a in sys.argv[1:]]:
+for label,path in [a.split("=",1) for a in sys.argv[1:]]:
     ck=torch.load(path,map_location="cpu",weights_only=True)
     m=DQN(ck["n_actions"]); m.load_state_dict(ck["model"]); m.eval()
     sc=[]
@@ -30,5 +30,5 @@ for label,path in [a.split("=") for a in sys.argv[1:]]:
     out[label]={"scores":sc,"mean":float(np.mean(sc)),"sd":float(np.std(sc,ddof=1)),
                 "se":float(np.std(sc,ddof=1)/len(sc)**0.5)}
     print(f"{label:12} n={len(sc)} mean {np.mean(sc):7.1f}  sd {np.std(sc,ddof=1):6.1f}  se {np.std(sc,ddof=1)/len(sc)**.5:5.1f}", flush=True)
-    json.dump(out, open("/private/tmp/claude-501/-Users-ankitapunjani/552d5a34-90a1-4753-96db-2eb4bed786a4/scratchpad/power.json","w"), indent=2)
+    json.dump(out, open("/private/tmp/claude-501/-Users-ankitapunjani/552d5a34-90a1-4753-96db-2eb4bed786a4/scratchpad/power_rest.json","w"), indent=2)
 env.close(); print("DONE")
