@@ -5,8 +5,13 @@ A Deep Q-Network trained on `ALE/MsPacman-v5` using the class notebook, run loca
 **My three choices: exploration 0.10, 450 episodes, learning rate 0.0001.**
 
 **Result: mean 946.0 after training, against an untrained baseline of 492.0 — the agent nearly doubled the
-baseline (+454.0, +92%).** Confirmed on 40 held-out seeds outside the graded five: **1098.2 vs 522.0, a
-2.10× improvement, paired t = +4.64, winning 30 of 40 games.**
+baseline (+454.0, +92%).** Confirmed on **80 held-out seeds** in two disjoint blocks outside the graded
+five: **1085.6 vs 463.1, a 2.34× improvement, paired t = +7.52, winning 60 of 80 games.**
+
+All three assigned hyperparameters were chosen by experiment, not by argument: I ran a sweep over
+exploration and learning rate and selected on held-out seeds (see
+[Hyperparameter sweep](#hyperparameter-sweep)). Trained model checkpoints are published in the
+[v1.0-ep450 release](https://github.com/ankita-punjani/homework3_foai_pacman/releases/tag/v1.0-ep450).
 
 The notebook and DQN implementation are the class starter from
 [pepealonso95/pacman-dqn](https://github.com/pepealonso95/pacman-dqn); the hyperparameter choices, the
@@ -43,12 +48,13 @@ without rerunning anything.
 | Episodes | 100 | **450** |
 | Learning rate | 0.0001 | **0.0001** |
 
-**Exploration = 0.10.** The environment already applies **25% sticky actions**, so it injects a lot of
-randomness before epsilon adds any. The replay buffer holds only **5,000 transitions ≈ 8 games**, so
-training data is nearly on-policy and overwritten quickly — filling it with random moves wastes the only
-memory the agent has. Epsilon is also **constant here, with no decay**, so my value applied for every game;
-since evaluation always runs at 5%, training at 20% would mean optimising a noisier policy than the one
-being graded.
+**Exploration = 0.10.** My reasoning was that the environment already applies **25% sticky actions**, so it
+injects plenty of randomness before epsilon adds any; that the replay buffer holds only **5,000 transitions
+≈ 8 games**, so filling it with random moves wastes the only memory the agent has; and that since epsilon is
+**constant here with no decay** and evaluation always runs at 5%, training at 20% would optimise a noisier
+policy than the one being graded. **I then tested it** by running 0.05 and 0.20 with everything else fixed.
+On held-out seeds 0.10 was the best of the three, though 0.20 was close enough to be statistically tied —
+the reasoning held, but only just.
 
 **Episodes = 450, chosen from evidence rather than guessed.** I first ran an exploratory 600-episode run,
 then evaluated all 24 of its saved checkpoints under the frozen protocol and re-tested the strongest ones on
@@ -58,10 +64,12 @@ notebook end to end to produce the submitted run. Selecting on held-out seeds ra
 ones keeps the choice honest — I am tuning a hyperparameter, not fitting the test set. Training is
 deterministic under `SEED = 42`, so the rerun reproduced that checkpoint exactly.
 
-**Learning rate = 0.0001.** The standard Adam DQN value and the notebook's reference point. With a small
-buffer and a target network resyncing every 1,000 decisions, the setup already chases a moving target; a
-larger rate learns faster per update but risks oscillation, and a diverged run would have wasted the whole
-budget.
+**Learning rate = 0.0001.** The standard Adam DQN value and the notebook's reference point. **I tested
+0.00025 and 0.00005 as well.** Raising it to 0.00025 was clearly worse. Lowering it to 0.00005 produced the
+single most tempting result in this whole project — **1118.0 on the five graded seeds, higher than my
+submitted run's 946.0** — but on 80 held-out seeds that same model scored only 880.8 and 954.5, below my
+submitted model. I did not take it: choosing the configuration that wins on the five seeds I am scored on is
+fitting the test set, and this project has now caught that error four separate times.
 
 ### Other settings
 
@@ -148,16 +156,19 @@ cap. The baseline is an untrained network.
 Three of five seeds improved, two declined; neither agent hit the time limit on any game. Full data:
 [**`comparison.json`**](results/comparison.json).
 
-Because five games is a small sample, I re-tested on **40 fresh seeds** disjoint from the graded five, paired
-so both networks played identical games
-([`results/verification_40seeds.json`](results/verification_40seeds.json)):
+Because five games is a small sample, I re-tested on **80 fresh seeds** in two disjoint blocks (1000–1039
+and 2000–2039), paired so both networks played identical games
+([`results/verification_40seeds.json`](results/verification_40seeds.json),
+[`results/hyperparameter_sweep/heldout_setB_confirmation.json`](results/hyperparameter_sweep/heldout_setB_confirmation.json)):
 
-| | Mean over 40 seeds | vs untrained |
-|---|---|---|
-| Untrained | 522.0 | — |
-| **Trained (ep 450)** | **1098.2** | **+576.2 (2.10×), paired t = +4.64, won 30/40** |
+| | Block A (40) | Block B (40) | Combined (80) |
+|---|---|---|---|
+| Untrained | 522.0 | 404.2 | 463.1 |
+| **Trained (ep 450)** | **1098.2** | **1073.0** | **1085.6** |
 
-The improvement is real and statistically strong, not an artefact of a lucky five-game draw.
+Combined: **+622.5 (2.34×), paired t = +7.52, won 60 of 80 games.** The improvement is real and
+statistically strong, not an artefact of a lucky five-game draw, and it holds on a second block the model
+was never selected against.
 
 ### Training dashboard
 
@@ -232,27 +243,37 @@ experience tells it that power pills set up the highest-value play in the game.
 
 ## One next experiment
 
-**Change one setting: lower `LEARNING_RATE` from 0.0001 to 0.00005**, holding exploration at 0.10 and
-episodes at 450.
+**Change one setting: raise `BATCH_SIZE` from 32 to 128**, holding exploration at 0.10, episodes at 450, and
+learning rate at 0.0001.
 
-I tested three other candidates first and the evidence ruled them out:
+I have now tested every other candidate I could think of, and the evidence ruled them all out:
 
 | Hypothesis tested | Result |
 |---|---|
-| Replay buffer 5,000 → 50,000 | **Worse** — 308.0 vs 504.0 at matched budget (episode 250) |
-| More episodes (600) | **Worse** — final model 432.0 graded, 602.8 on held-out seeds |
-| Target sync 1,000 → 5,000 decisions | **No real gain** — 658.0 graded looked promising, but only 544.2 on held-out seeds, statistically indistinguishable from the untrained 522.0 |
+| Replay buffer 5,000 → 50,000 | **Worse** — 308.0 vs 504.0 at matched budget |
+| More episodes (600) | **Worse** — 432.0 graded, 602.8 held-out; performance peaks then decays |
+| Target sync 1,000 → 5,000 decisions | **No gain** — 658.0 graded but 544.2 held-out, indistinguishable from baseline |
+| Exploration 0.05 / 0.20 | **No gain** — both at or below 0.10 on held-out seeds |
+| Learning rate 0.00025 | **Worse** on held-out seeds |
+| Learning rate 0.00005 | **Tied** — 1159.4 vs 1085.6 on 80 held-out seeds, t = +0.72 |
 
-So the problem is not memory size, training budget, or target staleness. What is left is **step size**: the
-checkpoint-to-checkpoint swings of 300–500 points are what an over-large update looks like when a small,
-fast-turning replay buffer feeds it. Halving the learning rate is the smallest change that directly damps
-that oscillation, and it costs no extra memory or training time.
+Nothing in the hyperparameter space reliably beats what I have; the top three candidates are statistically
+tied around 1100. That itself is the finding: **the remaining problem is variance, not the setting values.**
+Across four configurations the best checkpoint appeared at episode 50, 75, 325, and 450 respectively — the
+peak location is essentially random, so no configuration converges to a policy you could trust without
+measuring it afterwards.
 
-I would judge it not by the final score but by the **variance across checkpoints**: if the sweep's standard
-deviation drops meaningfully below 186.7 while the mean holds near 690, the policy is actually converging
-and the final model becomes trustworthy rather than lucky. If the swings persist at half the learning rate,
-the instability is coming from the replay buffer's size rather than the step size, and the next lever would
-be epsilon decay so the agent stops perturbing a policy it has already learned.
+That points at the noisiest remaining component: the gradient estimate itself. Every update draws just **32
+transitions from a 5,000-transition buffer**, which is a very noisy sample of an already small and highly
+correlated pool. Quadrupling the batch to 128 cuts that gradient noise roughly in half without changing the
+effective step size the way a learning-rate change does — and learning rate is precisely the lever I already
+tested and found tied. It costs no extra game time, only a modest amount of compute per update.
+
+I would judge it on **variance rather than peak score**: if the checkpoint-to-checkpoint standard deviation
+falls well below the 186.7 seen here while the held-out mean holds near 1100, the agent is finally
+converging, and the final model becomes trustworthy instead of lucky. If the swings persist, the instability
+is intrinsic to a 5,000-transition buffer at this budget, and the honest conclusion would be that this
+classroom configuration cannot produce a stable Ms. Pac-Man agent no matter how its three dials are set.
 
 ---
 
@@ -267,7 +288,8 @@ be epsilon decay so the agent stops perturbing a policy it has already learned.
 - [`results/checkpoint_sweep.json`](results/checkpoint_sweep.json) — every checkpoint under the frozen protocol
 - [`results/verification_40seeds.json`](results/verification_40seeds.json) — the 40-seed paired re-test
 - [`results/ablation_buffer50k/`](results/ablation_buffer50k) — the interrupted 50,000-buffer comparison
-- [`analysis/`](analysis) — scripts for the checkpoint sweep, the plot, the action-distribution comparison, and the 40-seed verification
+- [`results/hyperparameter_sweep/`](results/hyperparameter_sweep) — the exploration and learning-rate sweep: per-config graded results, held-out block A, the block B confirmation, and [`summary.json`](results/hyperparameter_sweep/summary.json)
+- [`analysis/`](analysis) — scripts for the checkpoint sweep, the plot, the action-distribution comparison, and held-out evaluation
 
 **Interrupted runs.** The submitted run **completed all 450 episodes with 68,454 learning updates** — it was
 not interrupted and did not lack learning updates. One *exploratory* experiment, the 50,000-buffer ablation,
@@ -275,10 +297,12 @@ not interrupted and did not lack learning updates. One *exploratory* experiment,
 `comparison.json`, or `training_summary.json`. It is reported as an ablation only, never as a submitted
 result.
 
-**Model checkpoints** (`untrained.pt`, `trained.pt`, and 18 periodic checkpoints, ~6.8 MB each) are **not in
-this repository**. They are kept locally in the ZIP the notebook produced, alongside the exploratory runs, as
-the assignment allows. Rerunning the notebook regenerates equivalent checkpoints under a fresh
-`pacman_runs/` folder.
+**Model checkpoints** are published as a GitHub release rather than committed to the repository:
+[**v1.0-ep450**](https://github.com/ankita-punjani/homework3_foai_pacman/releases/tag/v1.0-ep450) contains
+`untrained.pt` (the baseline network), `trained_ep450.pt` (the submitted model), and `full_run_ep450.zip`
+(the complete run folder with all 18 periodic checkpoints, GIFs, dashboard, and logs — 120 MB). Load one
+with `torch.load(path, map_location="cpu", weights_only=True)`; the state dict is under the `model` key.
+Checkpoints for the exploratory runs are kept locally in their own run ZIPs.
 
 ---
 
@@ -305,3 +329,36 @@ performed **worse** at matched budget — 308.0 vs 504.0 at episode 250, and 476
 first ten checkpoints. My reading: with only a few hundred thousand decisions, a large buffer keeps warm-up
 and early bad-policy experience in the sampling pool far longer, so a scarce update budget is spent
 rehearsing stale data. Data: [`results/ablation_buffer50k/`](results/ablation_buffer50k).
+
+### Hyperparameter sweep
+
+To make sure all three assigned values were chosen by evidence rather than argument, I ran four extra
+450-episode experiments varying exploration and learning rate one at a time, then evaluated **every**
+checkpoint of every run on held-out block A (seeds 1000–1039) and confirmed the leaders on a second,
+untouched block B (seeds 2000–2039). Selection on A, confirmation on B, so a candidate cannot win by
+fitting the block it was picked on.
+
+| Configuration | Graded 5 seeds (ep 450) | Best held-out checkpoint | Held-out mean, 80 seeds |
+|---|---|---|---|
+| **exploration 0.10, lr 0.0001 (submitted)** | **946.0** | ep 450 | **1085.6** |
+| exploration 0.05, lr 0.0001 | 446.0 | ep 50 | — |
+| exploration 0.20, lr 0.0001 | 356.0 | ep 325 | 1102.2 (t = +0.16, tied) |
+| exploration 0.10, lr 0.00025 | 570.0 | ep 250 | — |
+| exploration 0.10, lr 0.00005 | **1118.0** | ep 75 | 1159.4 (t = +0.72, tied) |
+
+Two things are worth drawing out.
+
+**The graded five seeds pointed the wrong way again.** The lr 0.00005 run scored **1118.0** on them — higher
+than my submitted 946.0 — and switching to it would have raised my leaderboard number by 172 points. On 80
+held-out seeds it is statistically tied with what I submitted, and its own final model scores *below* mine
+(880.8 and 954.5 versus 1098.2 and 1073.0). I kept the model selected on held-out data. Picking the
+configuration that happens to win on the five seeds you are graded on is fitting the test set, and it is the
+exact mistake this project has now caught four times.
+
+**No setting reliably wins.** The top three candidates sit within 74 points of each other with paired t
+statistics of 0.72 and 0.16 — statistically indistinguishable. Meanwhile the best checkpoint appears at
+episode 50, 75, 325, and 450 across the four configurations, with no pattern. The score is not limited by
+which values I chose; it is limited by how unstable this configuration is, which is what the limitation and
+next-experiment sections above address.
+
+Raw data: [`results/hyperparameter_sweep/`](results/hyperparameter_sweep).

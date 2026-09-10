@@ -1,0 +1,40 @@
+{
+  "purpose": "Held-out model selection across all three assigned hyperparameters.",
+  "seed_blocks": {
+    "setA": "1000-1039",
+    "setB": "2000-2039",
+    "graded": "101,202,303,404,505"
+  },
+  "submitted": {
+    "exploration": 0.1,
+    "episodes": 450,
+    "learning_rate": 0.0001,
+    "graded_mean": 946.0,
+    "heldout_setA": 1098.2,
+    "heldout_setB": 1073.0,
+    "heldout_80_mean": 1085.625,
+    "heldout_80_se": 78.28599866531253
+  },
+  "untrained_heldout_80_mean": 463.125,
+  "submitted_vs_untrained_80seeds": {
+    "diff": 622.5,
+    "se": 82.73843565222401,
+    "t": 7.523710051958991,
+    "ratio": 2.3441295546558703,
+    "wins": 60,
+    "n": 80
+  },
+  "challengers_80seeds": {
+    "expl0.10_lr5e-5_ep75": {
+      "mean": 1159.4,
+      "t_vs_submitted": 0.72,
+      "verdict": "indistinguishable"
+    },
+    "expl0.20_lr1e-4_ep325": {
+      "mean": 1102.2,
+      "t_vs_submitted": 0.16,
+      "verdict": "indistinguishable"
+    }
+  },
+  "note": "The lr 5e-5 run scored 1118.0 on the five graded seeds but only 880.8/954.5 on held-out blocks; it was NOT selected, because choosing by the graded seeds is fitting the test set."
+}
