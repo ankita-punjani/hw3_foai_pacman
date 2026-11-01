@@ -11,7 +11,7 @@ five: **1085.6 vs 463.1, a 2.34× improvement, paired t = +7.52, winning 60 of 8
 All three assigned hyperparameters were chosen by experiment, not by argument: I ran a sweep over
 exploration and learning rate and selected on held-out seeds (see
 [Hyperparameter sweep](#hyperparameter-sweep)). Trained model checkpoints are published in the
-[v1.0-ep450 release](https://github.com/ankita-punjani/homework3_foai_pacman/releases/tag/v1.0-ep450).
+[v1.0-ep450 release](https://github.com/ankita-punjani/hw3_foai_pacman/releases/tag/v1.0-ep450).
 
 The notebook and DQN implementation are the class starter from
 [pepealonso95/pacman-dqn](https://github.com/pepealonso95/pacman-dqn); the hyperparameter choices, the
@@ -22,8 +22,8 @@ executed run, the analysis, and this write-up are mine.
 ## Open and run
 
 ```bash
-git clone https://github.com/ankita-punjani/homework3_foai_pacman.git
-cd homework3_foai_pacman
+git clone https://github.com/ankita-punjani/hw3_foai_pacman.git
+cd hw3_foai_pacman
 python3.13 -m venv .venv && source .venv/bin/activate
 python -m pip install -r requirements.txt
 python -m jupyter lab pacman_dqn.ipynb
@@ -298,7 +298,7 @@ not interrupted and did not lack learning updates. One *exploratory* experiment,
 result.
 
 **Model checkpoints** are published as a GitHub release rather than committed to the repository:
-[**v1.0-ep450**](https://github.com/ankita-punjani/homework3_foai_pacman/releases/tag/v1.0-ep450) contains
+[**v1.0-ep450**](https://github.com/ankita-punjani/hw3_foai_pacman/releases/tag/v1.0-ep450) contains
 `untrained.pt` (the baseline network), `trained_ep450.pt` (the submitted model), and `full_run_ep450.zip`
 (the complete run folder with all 18 periodic checkpoints, GIFs, dashboard, and logs — 120 MB). Load one
 with `torch.load(path, map_location="cpu", weights_only=True)`; the state dict is under the `model` key.
